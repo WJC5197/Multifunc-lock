@@ -1,0 +1,170 @@
+C51 COMPILER V9.01   LCD                                                                   06/02/2021 22:42:39 PAGE 1   
+
+
+C51 COMPILER V9.01, COMPILATION OF MODULE LCD
+OBJECT MODULE PLACED IN lcd.obj
+COMPILER INVOKED BY: D:\keil4\C51\BIN\C51.EXE SRC\lcd.c LARGE BROWSE INCDIR(.\SRC) DEBUG OBJECTEXTEND PRINT(.\lcd.lst) O
+                    -BJECT(lcd.obj)
+
+line level    source
+
+   1          #include "lcd.h"
+   2          #include "reg52.h"
+   3          #define LCD_DB   P2  // - - P0   = DB0～DB7
+   4          sbit  LCD_RS=P0^5; // - - p2.0 = RS
+   5          sbit  LCD_RW=P0^6; // - - p2.1 = RW
+   6          sbit  LCD_E=P0^7;  // - - p2.2 = E
+   7          // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   8          // - - 定义函数
+   9          #define u8 unsigned char
+  10          #define u16 unsigned int
+  11          
+  12          // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  13          // - - 定义子程序函数
+  14          void LCD_init(void); // - - 初始化LCD1602函数
+  15          void LCD_write_command(u8 command); // - - 向LCD1602写指令函数
+  16          void LCD_write_data(u8 dat); // - - 向LCD1602写数据函数
+  17          void LCD_set_xy(u8 x,u8 y); // - - 设置LCD1602显示位置 X（0-16),y(1-2)
+  18          void LCD_disp_char(u8 x,u8 y,u8 dat); // - - 在LCD1602上显示一个字符
+  19          void LCD_disp_string(u8 X,u8 Y,u8 *s); // - - 在LCD1602上显示一个字符串
+  20          void LCD_check_busy(void);//检查忙函数。我没用到此函数，因为通过率极低。
+  21          void LCD_delay_10us(u16 n); // - - 10微秒的延时子程序
+  22          void LCD_delay_50us(u16 n); // - - 50微秒的延时子程序
+  23          // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  24          // - - 初始化LCD1602
+  25          void LCD_init(void)
+  26          {
+  27   1      LCD_delay_10us(20);
+  28   1      LCD_write_command(0x38); // - - 设置8位格式，2行，5x7
+  29   1      LCD_delay_10us(5);
+  30   1      LCD_write_command(0x0c); // - - 整体显示，关光标，不闪烁
+  31   1      LCD_delay_10us(5);
+  32   1      LCD_write_command(0x06); // - - 设定输入方式，增量不移位
+  33   1      LCD_delay_10us(5);
+  34   1      LCD_write_command(0x01); // - - 清除屏幕显示
+  35   1      LCD_delay_50us(40);
+  36   1      }
+  37          //********************************
+  38          
+  39          // - - 向LCD1602写指令
+  40          void LCD_write_command(u8 dat)
+  41          {
+  42   1      LCD_delay_10us(5);
+  43   1      LCD_RS=0; // - - 指令
+  44   1      LCD_RW=0; // - - 写入
+  45   1      LCD_DB=dat;
+  46   1      LCD_delay_10us(5);
+  47   1      LCD_E=1; // - - 允许
+  48   1      LCD_delay_10us(5);
+  49   1      LCD_E=0;
+  50   1      }
+  51          
+  52          // - - 向LCD1602写数据
+  53          void LCD_write_data(u8 dat) 
+  54          {
+C51 COMPILER V9.01   LCD                                                                   06/02/2021 22:42:39 PAGE 2   
+
+  55   1      LCD_delay_10us(5);
+  56   1      LCD_RS=1;// - - 数据
+  57   1      LCD_RW=0;// - - 写入
+  58   1      LCD_DB=dat;
+  59   1      LCD_delay_10us(5);
+  60   1      LCD_E=1;// - - 允许
+  61   1      LCD_delay_10us(5);
+  62   1      LCD_E=0;
+  63   1      }
+  64          
+  65          // - - 设置显示位置
+  66          void LCD_set_xy(u8 x,u8 y)
+  67          {
+  68   1        u8 address;
+  69   1        if(y==1)
+  70   1        {
+  71   2          address=0x80+x; // - - 第一行位置
+  72   2        } else {
+  73   2          address=0xc0+x; // - - 第二行位置
+  74   2        }
+  75   1          LCD_delay_10us(5);
+  76   1          LCD_write_command(address);
+  77   1      }
+  78          
+  79          // - - 显示一个字符函数
+  80          void LCD_disp_char(u8 x,u8 y,u8 dat) // - - LCD_disp_char(0,1,0x38); // - - 显示8
+  81          {
+  82   1          LCD_set_xy(x,y);
+  83   1          LCD_delay_10us(5);
+  84   1          LCD_write_data(dat);
+  85   1      }
+  86          
+  87          // - - 显示一个字符串函数
+  88          void LCD_disp_string(u8 x,u8 y,u8 *s)
+  89          {
+  90   1        LCD_set_xy(x,y);
+  91   1        LCD_delay_10us(5);
+  92   1        while(*s!='\0')
+  93   1        {
+  94   2          LCD_write_data(*s);
+  95   2          s++;
+  96   2        }
+  97   1      }
+  98          void display_rfid(u8 a,u8 b,u8 *p,u8 num)
+  99           {
+ 100   1      
+ 101   1            u8 i;               
+ 102   1                LCD_set_xy(a,b);             //第一行显示数字0~9      
+ 103   1            for(i=0;i<num;i++)
+ 104   1                LCD_write_data(p[i]);      //显示字母
+ 105   1                    
+ 106   1       }
+ 107          
+ 108          //********************************
+ 109          
+ 110          void LCD_check_busy() //实践证明，在我的LCD1602上，检查忙指令通过率极低，以
+ 111          {  //至于不能正常使用LCD。因此我没有再用检查忙函数。而使
+ 112   1        do   //用了延时的方法，延时还是非常好用的。我试了一下，用
+ 113   1        { LCD_E=0;   //for循环作延时，普通指令只要1次循就可完成。清屏指令
+ 114   2          LCD_RS=0;                 //要用200次循环便能完成。   
+ 115   2          LCD_RW=1;
+ 116   2          LCD_DB=0xff;
+C51 COMPILER V9.01   LCD                                                                   06/02/2021 22:42:39 PAGE 3   
+
+ 117   2          LCD_E=1;
+ 118   2        }
+ 119   1        while(LCD_DB^7==1);
+ 120   1      }
+ 121          
+ 122          void display_clear_line(u8 a)
+ 123           {
+ 124   1         u8 i;
+ 125   1         LCD_set_xy(a,0);
+ 126   1         for(i=0;i<16;i++)
+ 127   1         LCD_write_data(' ');
+ 128   1       }
+ 129          
+ 130          void LCD_delay_10us(u16 n) // - - 10微秒的延时子程序
+ 131          { 
+ 132   1        u16 i,j;
+ 133   1        for(i=n;i>0;i--)
+ 134   1          for(j=2;j>0;j--);  
+ 135   1      } 
+ 136          
+ 137          void LCD_delay_50us(u16 n) // - - 50微秒的延时子程序
+ 138          { 
+ 139   1        u16 i,j;
+ 140   1        for(i=n;i>0;i--)
+ 141   1          for(j=22;j>0;j--);  
+ 142   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    357    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----      15
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

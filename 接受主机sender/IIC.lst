@@ -1,0 +1,128 @@
+C51 COMPILER V9.01   IIC                                                                   03/14/2021 15:14:54 PAGE 1   
+
+
+C51 COMPILER V9.01, COMPILATION OF MODULE IIC
+OBJECT MODULE PLACED IN IIC.obj
+COMPILER INVOKED BY: D:\keil4\C51\BIN\C51.EXE SRC\IIC.c LARGE BROWSE INCDIR(.\SRC) DEBUG OBJECTEXTEND PRINT(.\IIC.lst) O
+                    -BJECT(IIC.obj)
+
+line level    source
+
+   1          #include "IIC.h"
+   2          
+   3          void delay5us()         
+   4          {
+   5   1        u8 i,j;
+   6   1        for(i=0;i<5;i++)
+   7   1        {
+   8   2              for(j=0;j<123;j++)
+   9   2              {
+  10   3              }
+  11   2        }
+  12   1      }
+  13          
+  14          void I2C_init()                            //初始化
+  15          {
+  16   1              SDA = 1;
+  17   1              _nop_();
+  18   1              SCL = 1;
+  19   1              _nop_();                //空闲时，两条线均为高电平       
+  20   1      }
+  21          
+  22          /*I2C通信起始信号*/
+  23          void I2C_start()
+  24          {
+  25   1              SCL = 1;   //此时主机有总线控制权，先把SCL线拉高
+  26   1              _nop_();   //稳定一下
+  27   1              SDA = 1;   //把SDA线拉高，以便发出起始信号（不确定是否为高）
+  28   1              delay5us();//通信协议规定延时大于4.7us
+  29   1              SDA = 0;   //拉低SDA线，制造下降沿的起始信号
+  30   1              delay5us();//通信协议规定延时大于4us
+  31   1      }
+  32                                            
+  33          /*I2C通信终止信号*/
+  34          void I2C_stop()
+  35          {
+  36   1              SDA = 0;   //拉低SDA线，以便发出终止信号
+  37   1              _nop_();   //稳定一下
+  38   1              SCL = 1;   //拉高SCL线
+  39   1              delay5us();//通信协议规定延时大于4us
+  40   1              SDA = 1;   //拉高SDA线
+  41   1              delay5us();//通信协议规定延时大于4.7us
+  42   1      }
+  43          
+  44          /*从机应答检测*/
+  45          bit Test_ack()
+  46          {
+  47   1              SCL = 1;        
+  48   1              //拉高SCL线，以便主机读取从机发出的应答或非应答信号
+  49   1              delay5us();//通信协议规定延时大于4us
+  50   1              if(SDA)    
+  51   1              //主机读取的SDA线为高，说明从机发送了一个非应答信号
+  52   1              {
+  53   2                      SCL = 0;/*接下来准备发送停止信号，所以让时钟总线SCL拉低，
+  54   2                                      让I2C_stop();函数中的SDA可变为0*/
+C51 COMPILER V9.01   IIC                                                                   03/14/2021 15:14:54 PAGE 2   
+
+  55   2                      _nop_();//稳定总线
+  56   2                      I2C_stop();
+  57   2                      return 0;//结束检测从机应答函数
+  58   2              }       
+  59   1              else
+  60   1              //主机读取的SDA线为低，说明从机发送了一个应答信号
+  61   1              {
+  62   2                      SCL = 0;/*将时钟总线SCL拉低，此时SDA上数据的变化才有效，
+  63   2                                      因为接下来会继续发数据*/
+  64   2                      _nop_();//稳定总线
+  65   2                      return 1;
+  66   2              }
+  67   1      }
+  68          
+  69          /*I2C通信：发送一个字节*/
+  70          void I2C_send_byte(u8 byte)
+  71          {
+  72   1              u8 i;//声明一个计数变量i
+  73   1              for(i = 0; i < 8; i++)//一个字节有8位，发8次
+  74   1              {
+  75   2                      SCL = 0;//拉低SCL，让数据总线SDA变化有效
+  76   2                      _nop_();//稳定总线
+  77   2                      if(byte & 0x80)//1000 0000 & byte
+  78   2      /*如果（要发送数据的当前传输位）byte的最高位为1，执行该if语句，
+  79   2        如果（要发送数据的当前传输位）byte的最高位为0，不执行该if语句*/
+  80   2                      {
+  81   3                              SDA = 1;   
+  82   3                              //（当前传输位）byte的最高位为1，即把1放到SDA线上
+  83   3                              _nop_();//稳定总线
+  84   3                      }       
+  85   2                      else
+  86   2                      //如果（当前发送位）byte的最高位为0（不为1），给SDA送0
+  87   2                      {
+  88   3                              SDA = 0;
+  89   3                              _nop_();//稳定总线
+  90   3                      }
+  91   2                      SCL = 1;//拉高SCL线，使从机能够从SDA线上读取到当前的数据
+  92   2                      _nop_();//稳定总线
+  93   2                      byte <<= 1;
+  94   2      /*使byte左移一位，即原来已被发送到SDA线上的最高位被移除，
+  95   2      第七位（还未发送的数据位）变成最高位变为下一次循环的当前发送位*/
+  96   2              }
+  97   1              SCL = 0;
+  98   1              //发送完数据之后，将SCL拉低，以便从机改变SDA线，发出应答信号
+  99   1              _nop_();//稳定总线
+ 100   1              SDA = 1;//释放总线控制权
+ 101   1              _nop_();//稳定总线
+ 102   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    105    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

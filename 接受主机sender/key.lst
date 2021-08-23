@@ -1,0 +1,129 @@
+C51 COMPILER V9.01   KEY                                                                   03/14/2021 21:04:16 PAGE 1   
+
+
+C51 COMPILER V9.01, COMPILATION OF MODULE KEY
+OBJECT MODULE PLACED IN key.obj
+COMPILER INVOKED BY: D:\keil4\C51\BIN\C51.EXE SRC\key.c LARGE BROWSE INCDIR(.\SRC) DEBUG OBJECTEXTEND PRINT(.\key.lst) O
+                    -BJECT(key.obj)
+
+line level    source
+
+   1          #include "key.h"
+   2          
+   3          #define u16 unsigned int
+   4          #define u8 unsigned char 
+   5          
+   6          u8 i=0;
+   7          u8 key_value;   //用来存放读取到的键值
+   8          u8 column_temp;
+   9          
+  10          /*******************************************************************************
+  11          * 函 数 名         : delay
+  12          * 函数功能                 : 延时函数，i=1时，大约延时10us
+  13          *******************************************************************************/
+  14          void delay(u16 i)
+  15          {
+  16   1              while(i--);     
+  17   1      }
+  18          
+  19          /*******************************************************************************
+  20          * 函 数 名         : KeyDown
+  21          * 函数功能                 : 检测有按键按下并读取键值
+  22          * 输    入         : 无
+  23          * 输    出         : 无
+  24          *******************************************************************************/
+  25          
+  26          void keydown(void)
+  27          {
+  28   1              char a=0;
+  29   1              GPIO_KEY=0x0f;
+  30   1              if(GPIO_KEY!=0x0f)//读取按键是否按下
+  31   1              {
+  32   2                      delay(1000);//延时10ms进行消抖
+  33   2                      if(GPIO_KEY!=0x0f)//再次检测键盘是否按下
+  34   2                      {       
+  35   3                              //测试列
+  36   3                              switch(GPIO_KEY)
+  37   3                              {
+  38   4                                      GPIO_KEY=0X0F;
+  39   4                                      case(0X07):     key_value=0;column_temp=1;break;
+  40   4                                      case(0X0b):     key_value=1;column_temp=2;break;
+  41   4                                      case(0X0d): key_value=2;column_temp=3;break;
+  42   4                                      case(0X0e):     key_value=3;column_temp=4;break;
+  43   4                              }
+  44   3                              //测试行
+  45   3                              switch(GPIO_KEY)
+  46   3                              {   GPIO_KEY=0XF0;
+  47   4                                      case(0X70):     key_value=key_value;break;
+  48   4                                      case(0Xb0):     
+  49   4                                       key_value=key_value+4;
+  50   4                                      break;
+  51   4                                      case(0Xd0):
+  52   4                                      if(column_temp==1||column_temp==2)
+  53   4                                      {
+  54   5                                        key_value=key_value+8;
+C51 COMPILER V9.01   KEY                                                                   03/14/2021 21:04:16 PAGE 2   
+
+  55   5                                         break;
+  56   5                                      }
+  57   4                                      else if(column_temp==3)
+  58   4                                      {
+  59   5                                        key_value='a';
+  60   5                                        break;
+  61   5                                      }
+  62   4                                      else if(column_temp==4)
+  63   4                                      {
+  64   5                                        key_value='b';
+  65   5                                        break;
+  66   5                                      }
+  67   4                                      case(0Xe0):
+  68   4                                      if(column_temp==1)
+  69   4                                      {
+  70   5                                        key_value='c';
+  71   5                                         break;
+  72   5                                      }
+  73   4                                      else if(column_temp==2)
+  74   4                                      {
+  75   5                                        key_value='d';
+  76   5                                        break;
+  77   5                                      }
+  78   4                                      else if(column_temp==3)
+  79   4                                      {
+  80   5                                        key_value='e';
+  81   5                                        break;
+  82   5                                      }
+  83   4                                      else if(column_temp==4)
+  84   4                                      {
+  85   5                                        key_value='f';
+  86   5                                        break;
+  87   5                                      }
+  88   4                              }
+  89   3                              
+  90   3                      }
+  91   2              }
+  92   1              while((a<50)&&(GPIO_KEY!=0xf0))  //检测按键松手检测
+  93   1              {
+  94   2                      delay(100);
+  95   2                      a++;
+  96   2              }
+  97   1              key_pros();
+*** WARNING C206 IN LINE 97 OF SRC\KEY.C: 'key_pros': missing function-prototype
+  98   1      }
+  99          
+ 100          
+ 101          
+ 102          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    254    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =      3       1
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  1 WARNING(S),  0 ERROR(S)

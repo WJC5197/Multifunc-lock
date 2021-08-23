@@ -1,0 +1,63 @@
+C51 COMPILER V9.01   MAIN                                                                  03/21/2021 10:59:18 PAGE 1   
+
+
+C51 COMPILER V9.01, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN main.obj
+COMPILER INVOKED BY: D:\keil4\C51\BIN\C51.EXE SRC\main.c LARGE BROWSE INCDIR(.\SRC) DEBUG OBJECTEXTEND PRINT(.\main.lst)
+                    - OBJECT(main.obj)
+
+line level    source
+
+   1          #define u8 unsigned char
+   2          #define u16 unsigned int
+   3          
+   4          #define FOSC    22118400L//11059200L
+   5          #define BAUD    9600
+   6          
+   7          #define FALSE   0
+   8          #define TRUE    1
+   9          
+  10          #define WR              0
+  11          #define RD              1
+  12          
+  13          #define nop() _nop_()
+  14          
+  15          #define BIT(n)  ( 1 << n )
+  16          #define LED_NONE        0
+  17          #define LED_LONG        1
+  18          #define LED_200MS       2
+  19          #define LED_80MS        3
+  20          
+  21          #include "main.h"
+*** ERROR C100 IN LINE 23 OF SRC\MAIN.H: unprintable character 0xA3 skipped
+*** ERROR C100 IN LINE 23 OF SRC\MAIN.H: unprintable character 0xBB skipped
+  22          #include "reg52.h"
+*** ERROR C141 IN LINE 81 OF D:\KEIL4\C51\INC\REG52.H: syntax error near '1', expected '<id>'
+*** ERROR C141 IN LINE 82 OF D:\KEIL4\C51\INC\REG52.H: syntax error near '0', expected '<id>'
+  23          
+  24          sbit SETTIME_MODE=P0^0;
+  25          sbit TEMPER_MODE=P0^1;
+  26          sbit RC522_MODE=P0^2;
+  27          sbit CLOCK_SET=P0^3;
+  28          sbit LED=P0^4;
+  29          
+  30          bit status=0;
+  31          
+  32          /******************
+  33          UartCmdLen：UartCmd + UartErrCode
+  34          UartDataLen：UartDataBuf
+  35          *******************/
+  36          
+  37          typedef struct __sUartData
+  38          {
+  39                  u8 UartCmdLen;  //命令长度
+  40                  u8 UartDataLen; //数据长度 
+  41                  u16 UartCmd;
+  42                  u8 UartErrCode;
+  43                  u8  UartDataBuf[1];
+  44          } *psUartData;
+*** ERROR C226 IN LINE 44 OF SRC\MAIN.C: '__sUartData': duplicate struct/union/enum tag
+*** ERROR C231 IN LINE 44 OF SRC\MAIN.C: 'psUartData': redefinition
+  45          
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  6 ERROR(S)

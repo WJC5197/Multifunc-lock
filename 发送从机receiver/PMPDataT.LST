@@ -1,0 +1,753 @@
+C51 COMPILER V9.01   PMPDATAT                                                              06/02/2021 22:42:39 PAGE 1   
+
+
+C51 COMPILER V9.01, COMPILATION OF MODULE PMPDATAT
+OBJECT MODULE PLACED IN PMPDataT.OBJ
+COMPILER INVOKED BY: D:\keil4\C51\BIN\C51.EXE PMPDataT.c LARGE BROWSE INCDIR(.\SRC) DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          
+   2          #include "reg52.h"    //此文件中定义了单片机的一些特殊功能寄存器
+   3          #include <string.h>
+   4          #include <intrins.h>
+   5          #include "lcd.h"
+   6          #include "ds1302.h"
+   7          #include "temp.h"
+   8          #include "ctrl.h"
+   9          #include "rc522.h"
+  10          #include "uart.h"
+  11          #include "EEPROM.h"
+  12          #include "main.h"
+  13          
+  14          #define u16 unsigned int
+  15          #define u8 unsigned char
+  16          
+  17          u8 a[]="time:";
+  18          u8 b[]="temperature:";
+  19          
+  20          u8 KeyValue;
+  21          u8 timeset_buf[] ="000000000000";
+  22          int tempdata[5]={0,0,0,0};
+  23          u8 dater_buf[] = "2000.01.01";
+  24          u8 timer_buf[] = "00:00:00";
+  25          u8 dateset[]="xxxxxx";                                                          
+  26          u8 timeset[]="xxxxxx";
+  27          u8 clock1[7];
+  28          u16 j=0;
+  29          u8 k=0;
+  30          u8 i=0;
+  31          u8 m=0;
+  32          u8 n=0;
+  33          
+  34          bit status=0;
+  35          bit flag_fail=0;           //错误状态
+  36          bit flag_settime=0;  //修改时间状态
+  37          bit flag_tempdisp=0; //温度显示状态
+  38          bit flag_clock=0;
+  39          bit clock1_on=0;
+  40          bit ds18b20_init_success=0;
+  41          
+  42          void delay_main(u16 i)  //当i=1，大约延时10us
+  43          {
+  44   1              while(i--);
+  45   1      }
+  46          
+  47          void delay(u16 i)
+  48          {
+  49   1              while(i--);
+  50   1      }
+  51          void delay_ms_main(u16 t)
+  52          {
+  53   1              u16 i;
+  54   1              while(t--)
+  55   1              {
+C51 COMPILER V9.01   PMPDATAT                                                              06/02/2021 22:42:39 PAGE 2   
+
+  56   2                      /* 对于11.0592M时钟，约延时1ms */
+  57   2                      for (i=0;i<125;i++);
+  58   2              }
+  59   1      }
+  60          
+  61          void led_blink_times(u8 j)
+  62          {
+  63   1        u8 i=0;
+  64   1        for(i=0;i<j;i++)
+  65   1        {
+  66   2              LED=0;
+  67   2              delay(5000);
+  68   2          LED=1;
+  69   2              delay(3000);
+  70   2        }
+  71   1      }
+  72          
+  73          void Datahandle(void)    
+  74          {
+  75   1              Ds1302ReadTime();
+  76   1              dater_buf[2] = (TIME[6]/16)+48;                         //年
+  77   1              dater_buf[3] = (TIME[6]&0x0f)+48;
+  78   1              dater_buf[5] = (TIME[4]/16)+48;                         //月
+  79   1              dater_buf[6] = (TIME[4]&0x0f)+48;
+  80   1              dater_buf[8] = (TIME[3]/16)+48;                         //日
+  81   1              dater_buf[9] = (TIME[3]&0x0f)+48;       
+  82   1              timer_buf[0] = (TIME[2]/16)+48;                         //时
+  83   1              timer_buf[1] = (TIME[2]&0x0f)+48;                                
+  84   1              timer_buf[3] = (TIME[1]/16)+48;                         //分
+  85   1              timer_buf[4] = (TIME[1]&0x0f)+48;       
+  86   1              timer_buf[6] = (TIME[0]/16)+48;                         //秒
+  87   1              timer_buf[7] = (TIME[0]&0x0f)+48;
+  88   1              if(timer_buf[0]==clock1[0]&&timer_buf[1]==clock1[1]&&timer_buf[3]==clock1[2]&&timer_buf[4]==clock1[3]&&cl
+             -ock1[4]==1)
+  89   1              {
+  90   2                clock1_on=1;
+  91   2              }
+  92   1      }
+  93          
+  94          void temppros(int temp)          
+  95          {
+  96   1                      tempdata[0] = (temp % 10000 / 1000)+48;
+  97   1                      tempdata[1] = (temp % 1000 / 100)+48;
+  98   1                      tempdata[2] = (temp % 100 / 10)+48;
+  99   1                      tempdata[3] = (temp % 10)+48;
+ 100   1      }
+ 101          
+ 102          void EEPROM_init()
+ 103          {
+ 104   1         EEPROM_READ(0,clock1,7);
+ 105   1         EEPROM_READ(1,KEY_BUF,8);
+ 106   1         EEPROM_READ(2,Card_saved_asc,128);
+ 107   1      }
+ 108          
+ 109          
+ 110          void keypros()
+ 111          {
+ 112   1              if(KeyValue==0||KeyValue==1||KeyValue==2||KeyValue==3)  
+ 113   1              {       
+ 114   2                      LCD_write_command(0x01);
+ 115   2                      delay(1000);
+ 116   2              }//清屏
+C51 COMPILER V9.01   PMPDATAT                                                              06/02/2021 22:42:39 PAGE 3   
+
+ 117   1              //温度显示
+ 118   1              if(KeyValue>=4&&KeyValue<=7&&flag_settime==1)//修改时间
+ 119   1              {
+ 120   2                 switch(KeyValue)
+ 121   2                 {
+ 122   3                 case 4:
+ 123   3                  if(timeset_buf[i]>='0'&&timeset_buf[i]<='9')
+ 124   3                  {
+ 125   4                       timeset_buf[i]=timeset_buf[i]+1; 
+ 126   4                      if((i>=0&&i<=5)||i==9||i==11)
+ 127   4                      {
+ 128   5                              if(timeset_buf[i]=='9'+1)
+ 129   5                              {
+ 130   6                      timeset_buf[i] -=10;
+ 131   6                              }
+ 132   5                      }
+ 133   4                      if(i==6)
+ 134   4                      {
+ 135   5                          if(timeset_buf[i]=='2'+1)
+ 136   5                              {
+ 137   6                      timeset_buf[i] -=3;
+ 138   6                              }
+ 139   5                      }
+ 140   4                      if(i==7&&timeset_buf[6]=='2')
+ 141   4                      {
+ 142   5                          if(timeset_buf[i]=='3'+1)
+ 143   5                              {
+ 144   6                      timeset_buf[i] -=4;
+ 145   6                              }
+ 146   5                      }
+ 147   4                      if(i==7&&timeset_buf[6]=='1'||timeset_buf[6]=='0')
+ 148   4                      {
+ 149   5                          if(timeset_buf[i]=='9'+1)
+ 150   5                              {
+ 151   6                      timeset_buf[i] -=10;
+ 152   6                              }
+ 153   5                      }
+ 154   4                      if(i==8||i==10)
+ 155   4                      {
+ 156   5                          if(timeset_buf[i]=='5'+1)
+ 157   5                              {
+ 158   6                      timeset_buf[i] -=6;
+ 159   6                              }
+ 160   5                      }
+ 161   4              }
+ 162   3                 break;
+ 163   3                 case 5:
+ 164   3                  if(timeset_buf[i]>='0'&&timeset_buf[i]<='9')
+ 165   3                  {
+ 166   4                       timeset_buf[i]=timeset_buf[i]-1; 
+ 167   4                      if((i>=0&&i<=5)||i==9||i==11)
+ 168   4                      {
+ 169   5                              if(timeset_buf[i]=='0'-1)
+ 170   5                              {
+ 171   6                      timeset_buf[i] +=10;
+ 172   6                              }
+ 173   5                      }
+ 174   4                      if(i==6)
+ 175   4                      {
+ 176   5                          if(timeset_buf[i]=='0'-1)
+ 177   5                              {
+ 178   6                      timeset_buf[i] +=3;
+C51 COMPILER V9.01   PMPDATAT                                                              06/02/2021 22:42:39 PAGE 4   
+
+ 179   6                              }
+ 180   5                      }
+ 181   4                      if(i==7&&timeset_buf[6]=='1'||timeset_buf[6]=='0')
+ 182   4                      {
+ 183   5                          if(timeset_buf[i]=='0'-1)
+ 184   5                              {
+ 185   6                      timeset_buf[i] +=10;
+ 186   6                              }
+ 187   5                      }
+ 188   4                      if(i==7&&timeset_buf[6]=='2')
+ 189   4                      {
+ 190   5                          if(timeset_buf[i]=='0'-1)
+ 191   5                              {
+ 192   6                      timeset_buf[i] +=4;
+ 193   6                              }
+ 194   5                      }
+ 195   4                      if(i==8||i==10)
+ 196   4                      {
+ 197   5                          if(timeset_buf[i]=='0'-1)
+ 198   5                              {
+ 199   6                      timeset_buf[i] +=6;
+ 200   6                              }
+ 201   5                      }
+ 202   4              }
+ 203   3                 break;
+ 204   3                 case 6:
+ 205   3                 i++;break;
+ 206   3                 case 7:
+ 207   3                      if(i==0)
+ 208   3                 {
+ 209   4                      break;
+ 210   4                 }
+ 211   3                 else
+ 212   3                 {
+ 213   4              i--;
+ 214   4                      break;
+ 215   4                 }
+ 216   3                 }
+ 217   2                 if(i<6)
+ 218   2                      {
+ 219   3                              dateset[i]=timeset_buf[i];
+ 220   3                      }
+ 221   2                      if(i>=6)
+ 222   2                      {
+ 223   3                              timeset[i-6]=timeset_buf[i];
+ 224   3                      }
+ 225   2                      if(i==12)
+ 226   2                      {
+ 227   3                              i=0;
+ 228   3                              for(m=0;m<12;m++)
+ 229   3                              {
+ 230   4                                timeset_buf[m]-=48;
+ 231   4                              }        
+ 232   3                              TIME[6]=(timeset_buf[0]*10+timeset_buf[1])+((timeset_buf[0]*10+timeset_buf[1])/10)*6;     //年
+ 233   3                              TIME[4]=(timeset_buf[2]*10+timeset_buf[3])+((timeset_buf[2]*10+timeset_buf[3])/10)*6;     //月
+ 234   3                              TIME[3]=(timeset_buf[4]*10+timeset_buf[5])+((timeset_buf[4]*10+timeset_buf[5])/10)*6;     //日
+ 235   3                              TIME[2]=(timeset_buf[6]*10+timeset_buf[7])+((timeset_buf[6]*10+timeset_buf[7])/10)*6;     //时 
+ 236   3                              TIME[1]=(timeset_buf[8]*10+timeset_buf[9])+((timeset_buf[8]*10+timeset_buf[9])/10)*6;     //分
+ 237   3                              TIME[0]=(timeset_buf[10]*10+timeset_buf[11])+((timeset_buf[10]*10+timeset_buf[11])/10)*6; //秒
+ 238   3                              for(m=0;m<12;m++)
+ 239   3                              {
+ 240   4                                timeset_buf[m]+=48;
+C51 COMPILER V9.01   PMPDATAT                                                              06/02/2021 22:42:39 PAGE 5   
+
+ 241   4                              }
+ 242   3                              Ds1302Init();
+ 243   3                              status=0;
+ 244   3                              flag_settime=0;
+ 245   3                      }
+ 246   2                      LCD_write_command(0x01);
+ 247   2                      delay(1000);
+ 248   2                      LCD_write_command(0x0c);
+ 249   2                      delay(1000);
+ 250   2              }
+ 251   1              if(flag_clock==1)
+ 252   1              {
+ 253   2                switch(KeyValue)
+ 254   2                {
+ 255   3                      case 4:
+ 256   3                  if(clock1[i]>='0'&&clock1[i]<='9'&&i==3)
+ 257   3                  {
+ 258   4                       clock1[i]=clock1[i]+1;
+ 259   4                      } 
+ 260   3                      if(clock1[i]=='9'+1)
+ 261   3                      {
+ 262   4               clock1[i] -=10;
+ 263   4                      }
+ 264   3                      if(i==1)
+ 265   3                      {
+ 266   4                       if(clock1[0]=='0'||clock1[0]=='1')
+ 267   4                       {
+ 268   5                        if(clock1[i]>='0'&&clock1[i]<='9')
+ 269   5                        {
+ 270   6                              clock1[i]++;
+ 271   6                        }
+ 272   5                        if(clock1[i]=='9'+1)
+ 273   5                        {
+ 274   6                         clock1[i]-=10;
+ 275   6                        }
+ 276   5                       }
+ 277   4                       if(clock1 [0]=='2')
+ 278   4                       {
+ 279   5                        if(clock1[i]>='0'&&clock1[i]<='3')
+ 280   5                        {
+ 281   6                              clock1[i]++;
+ 282   6                        }
+ 283   5                        if(clock1[i]=='3'+1)
+ 284   5                        {
+ 285   6                         clock1[i]-=4;
+ 286   6                        }
+ 287   5                       }
+ 288   4                      }
+ 289   3                      if(i==0)
+ 290   3                      {
+ 291   4                        if(clock1[i]>='0'&&clock1[i]<='2')
+ 292   4                        {
+ 293   5                              clock1[i]++;
+ 294   5                        }
+ 295   4                        if(clock1[i]=='2'+1)
+ 296   4                        {
+ 297   5                         clock1[i]-=3;
+ 298   5                        }
+ 299   4                      }
+ 300   3                      if(i==2)
+ 301   3                      {
+ 302   4                        if(clock1[i]>='0'&&clock1[i]<='5')
+C51 COMPILER V9.01   PMPDATAT                                                              06/02/2021 22:42:39 PAGE 6   
+
+ 303   4                        {
+ 304   5                              clock1[i]++;
+ 305   5                        }
+ 306   4                        if(clock1[i]=='5'+1)
+ 307   4                        {
+ 308   5                         clock1[i]-=6;
+ 309   5                        }
+ 310   4      
+ 311   4                      }
+ 312   3                      if(i==4)
+ 313   3                      {
+ 314   4                        clock1[4]=1;
+ 315   4                      }
+ 316   3                      break;
+ 317   3                      case 5:
+ 318   3                  if(clock1[i]>='0'&&clock1[i]<='9'&&i==3)
+ 319   3                  {
+ 320   4                       clock1[i]=clock1[i]-1;
+ 321   4                      } 
+ 322   3                      if(clock1[i]=='0'-1)
+ 323   3                      {
+ 324   4               clock1[i] +=10;
+ 325   4                      }
+ 326   3                      if(i==1)
+ 327   3                      {
+ 328   4                       if(clock1[0]=='1'||clock1[0]=='0')
+ 329   4                       {
+ 330   5                         if(clock1[i]>='0'&&clock1[i]<='9')
+ 331   5                        {
+ 332   6                              clock1[i]--;
+ 333   6                        }
+ 334   5                        if(clock1[i]=='0'-1)
+ 335   5                        {
+ 336   6                         clock1[i]+=10;
+ 337   6                        }
+ 338   5                       }
+ 339   4                       if(clock1[0]=='2')
+ 340   4                       { 
+ 341   5                        if(clock1[i]>='0'&&clock1[i]<='3')
+ 342   5                        {
+ 343   6                              clock1[i]--;
+ 344   6                        }
+ 345   5                        if(clock1[i]=='0'-1)
+ 346   5                        {
+ 347   6                         clock1[i]+=4;
+ 348   6                        }
+ 349   5                       }
+ 350   4                      }
+ 351   3                      if(i==0)
+ 352   3                      {
+ 353   4                        if(clock1[i]>='0'&&clock1[i]<='2')
+ 354   4                        {
+ 355   5                              clock1[i]--;
+ 356   5                        }
+ 357   4                        if(clock1[i]=='0'-1)
+ 358   4                        {
+ 359   5                         clock1[i]+=3;
+ 360   5                        }
+ 361   4                      }
+ 362   3                   if(i==2)
+ 363   3                      {
+ 364   4                        if(clock1[i]>='0'&&clock1[i]<='5')
+C51 COMPILER V9.01   PMPDATAT                                                              06/02/2021 22:42:39 PAGE 7   
+
+ 365   4                        {
+ 366   5                              clock1[i]--;
+ 367   5                        }
+ 368   4                        if(clock1[i]=='0'-1)
+ 369   4                        {
+ 370   5                         clock1[i]+=6;
+ 371   5                        }
+ 372   4                      }
+ 373   3                      if(i==4)
+ 374   3                      {
+ 375   4                        clock1[4]=0;
+ 376   4                      }
+ 377   3                      break;
+ 378   3                      case 6:
+ 379   3                      i++;
+ 380   3                      break;
+ 381   3                      case 7:
+ 382   3                  if(i==0)
+ 383   3                 {
+ 384   4                      break;
+ 385   4                 }
+ 386   3                 else
+ 387   3                 {
+ 388   4              i--;
+ 389   4                      break;
+ 390   4                 }
+ 391   3               }
+ 392   2                      if(i==5)
+ 393   2                      {
+ 394   3                       status=0;
+ 395   3                       flag_clock=0;
+ 396   3                       i=0;
+ 397   3                       EEPROM_WRITE(0,clock1,5);
+ 398   3              }
+ 399   2                      LCD_write_command(0x01);
+ 400   2                      delay(1000);
+ 401   2                      LCD_write_command(0x0c);
+ 402   2                      delay(1000);
+ 403   2              }
+ 404   1      }
+ 405           
+ 406          void KeyDown(void)
+ 407          {
+ 408   1              char a=0;
+ 409   1              if(SETTIME_MODE!=1)
+ 410   1              {
+ 411   2                delay(1000);
+ 412   2                if(SETTIME_MODE!=1)
+ 413   2                {
+ 414   3                  led_blink_times(1);
+ 415   3                  KeyValue=0;
+ 416   3                      if(status==1)
+ 417   3                      {
+ 418   4               KeyValue+=4;
+ 419   4                      } //修改时间状态
+ 420   3                      if(status==0)
+ 421   3                      {
+ 422   4                         flag_settime=1;
+ 423   4                         status=1;
+ 424   4                      }
+ 425   3      
+ 426   3                  keypros();
+C51 COMPILER V9.01   PMPDATAT                                                              06/02/2021 22:42:39 PAGE 8   
+
+ 427   3                              while((a<70)&&(SETTIME_MODE!=1))         //检测按键松手检测
+ 428   3                              {
+ 429   4                                      delay(1000);
+ 430   4                                      a++;
+ 431   4                              }       
+ 432   3                }
+ 433   2              }
+ 434   1              if(TEMPER_MODE!=1)
+ 435   1              {
+ 436   2                delay(1000);
+ 437   2                if(TEMPER_MODE!=1)
+ 438   2                {
+ 439   3                  led_blink_times(1);
+ 440   3                  KeyValue=1;
+ 441   3                      if(status==1)
+ 442   3                      {
+ 443   4               KeyValue+=4;
+ 444   4                      }
+ 445   3                      if(status==0)
+ 446   3                      {
+ 447   4                         flag_tempdisp=1;
+ 448   4                         status=1;
+ 449   4                      }//温度显示状态
+ 450   3      
+ 451   3                       keypros();
+ 452   3                                      while((a<70)&&(TEMPER_MODE!=1))  //检测按键松手检测
+ 453   3                              {
+ 454   4                                      delay(1000);
+ 455   4                                      a++;
+ 456   4                              }       
+ 457   3                }
+ 458   2              }
+ 459   1              if(RC522_MODE!=1)
+ 460   1              {
+ 461   2                delay(1000);
+ 462   2                if(RC522_MODE!=1)
+ 463   2                {
+ 464   3                 led_blink_times(1);
+ 465   3                 KeyValue=2;
+ 466   3                      if(status==1)
+ 467   3                      {
+ 468   4               KeyValue+=4;
+ 469   4                      }
+ 470   3                 if(status==0)
+ 471   3                      {  
+ 472   4                         rc522_state=1;
+ 473   4                         status=1;
+ 474   4                      }
+ 475   3                       keypros();
+ 476   3                                      while((a<70)&&(RC522_MODE!=1))   //检测按键松手检测
+ 477   3                              {
+ 478   4                                      delay(1000);
+ 479   4                                      a++;
+ 480   4                              }       
+ 481   3                }
+ 482   2              }
+ 483   1              if(CLOCK_SET!=1)
+ 484   1              {
+ 485   2                delay(1000);
+ 486   2                if(CLOCK_SET!=1)
+ 487   2                {
+ 488   3                  led_blink_times(1);
+C51 COMPILER V9.01   PMPDATAT                                                              06/02/2021 22:42:39 PAGE 9   
+
+ 489   3                  KeyValue=3;
+ 490   3                      if(status==1)
+ 491   3                      {
+ 492   4               KeyValue+=4;
+ 493   4                      }
+ 494   3                       if(status==0)
+ 495   3                      {
+ 496   4                         flag_clock=1;
+ 497   4                         status=1;
+ 498   4                      }
+ 499   3                       keypros();
+ 500   3                                              while((a<70)&&(CLOCK_SET!=1))    //检测按键松手检测
+ 501   3                              {
+ 502   4                                      delay(1000);
+ 503   4                                      a++;
+ 504   4                              }       
+ 505   3                }
+ 506   2              }
+ 507   1              
+ 508   1      }
+ 509          
+ 510          void display()
+ 511          {
+ 512   1         if(status==0)
+ 513   1         {
+ 514   2              LCD_disp_string(1,1,"Date:");
+ 515   2          LCD_disp_string(1,2,"Time:");
+ 516   2              LCD_disp_string(6,1,dater_buf);
+ 517   2              LCD_disp_string(7,2,timer_buf);
+ 518   2              if(clock1_on==1)
+ 519   2               {
+ 520   3                 clock1_on=0;
+ 521   3                 LCD_write_command(0x01);
+ 522   3                 delay_ms_main(100);
+ 523   3                 LCD_disp_string(1,1,"clock1 is on!");
+ 524   3                 send_byte(0x02);
+ 525   3                 delay_ms_main(5000);
+ 526   3               }
+ 527   2         }
+ 528   1         if(status==1&&rc522_state==0)
+ 529   1         {
+ 530   2               if(flag_settime==1)
+ 531   2               {
+ 532   3                      LCD_disp_string(6,1,"20");
+ 533   3                      LCD_disp_string(1,1,"Date:");
+ 534   3                  LCD_disp_string(1,2,"Time:");
+ 535   3                      LCD_disp_char(8,1,dateset[0]);
+ 536   3                      LCD_disp_char(9,1,dateset[1]);
+ 537   3                      LCD_disp_char(10,1,'.');
+ 538   3                      LCD_disp_char(11,1,dateset[2]);
+ 539   3                      LCD_disp_char(12,1,dateset[3]);
+ 540   3                      LCD_disp_char(13,1,'.');
+ 541   3                      LCD_disp_char(14,1,dateset[4]);
+ 542   3                      LCD_disp_char(15,1,dateset[5]);
+ 543   3                      LCD_disp_char(7,2,timeset[0]);
+ 544   3                      LCD_disp_char(8,2,timeset[1]);
+ 545   3                  LCD_disp_char(9,2,':');
+ 546   3                      LCD_disp_char(10,2,timeset[2]);
+ 547   3                      LCD_disp_char(11,2,timeset[3]);
+ 548   3                      LCD_disp_char(12,2,':');
+ 549   3                      LCD_disp_char(13,2,timeset[4]);
+ 550   3                      LCD_disp_char(14,2,timeset[5]);
+C51 COMPILER V9.01   PMPDATAT                                                              06/02/2021 22:42:39 PAGE 10  
+
+ 551   3                      for(j=0;SETTIME_MODE==1&&TEMPER_MODE==1&&RC522_MODE==1&&CLOCK_SET==1;j++)
+ 552   3              {
+ 553   4                              if(i>=0&&i<=1)
+ 554   4                      {
+ 555   5                      LCD_write_command(0x80 + i+ 8 ) ;       //指定光标位置
+ 556   5                      LCD_write_command(0x0f) ;
+ 557   5                              }
+ 558   4                              if(i>=2&&i<=3)
+ 559   4                      {
+ 560   5                      LCD_write_command(0x80 + i+ 9 ) ;       //指定光标位置
+ 561   5                      LCD_write_command(0x0f) ;
+ 562   5                              }
+ 563   4                              if(i>=4&&i<=5)
+ 564   4                      {
+ 565   5                      LCD_write_command(0x80 + i+ 10 ) ;      //指定光标位置
+ 566   5                      LCD_write_command(0x0f) ;
+ 567   5                              }       //光标闪烁指令
+ 568   4                              if(i>=6&&i<=7)
+ 569   4                              {
+ 570   5                              LCD_write_command(0xc0 + i+1 ) ;        //指定光标位置
+ 571   5                      LCD_write_command(0x0f) ;
+ 572   5                              }
+ 573   4                              if(i>=8&&i<=9)
+ 574   4                              {
+ 575   5                              LCD_write_command(0xc0 + i+2 ) ;        //指定光标位置
+ 576   5                      LCD_write_command(0x0f) ;
+ 577   5                              }
+ 578   4                              if(i>=10&&i<=11)
+ 579   4                              {
+ 580   5                              LCD_write_command(0xc0 + i+3 ) ;        //指定光标位置
+ 581   5                      LCD_write_command(0x0f) ;
+ 582   5                              }
+ 583   4                      }
+ 584   3               }
+ 585   2               else if(flag_tempdisp==1)
+ 586   2               {
+ 587   3                if(ds18b20_init_success==0)
+ 588   3                {
+ 589   4                LCD_disp_string(1,1,"init failed!");
+ 590   4                Delay1ms(3000);
+ 591   4                flag_tempdisp=0;
+ 592   4                status=0;
+ 593   4                LCD_write_command(0x01);
+ 594   4                }
+ 595   3                else
+ 596   3                {
+ 597   4                temppros(Ds18b20ReadTemp());
+ 598   4                LCD_disp_string(1,1," temperature:");
+ 599   4                LCD_disp_char(2,2,tempdata[0]);
+ 600   4                LCD_disp_char(3,2,tempdata[1]);
+ 601   4                LCD_disp_char(4,2,tempdata[2]);
+ 602   4                LCD_disp_char(5,2,'.');
+ 603   4                LCD_disp_char(6,2,tempdata[3]);
+ 604   4                LCD_disp_char(7,2,'C');
+ 605   4                Delay1ms(3000);
+ 606   4                flag_tempdisp=0;
+ 607   4                status=0;
+ 608   4                LCD_write_command(0x01);//清屏
+ 609   4                }
+ 610   3               }
+ 611   2               else if(flag_clock==1)
+ 612   2               {
+C51 COMPILER V9.01   PMPDATAT                                                              06/02/2021 22:42:39 PAGE 11  
+
+ 613   3                 LCD_disp_string(1,1,"clock1|");
+ 614   3                 LCD_disp_char(8,1,clock1[0]);
+ 615   3                 LCD_disp_char(9,1,clock1[1]);
+ 616   3                 LCD_disp_char(10,1,':');
+ 617   3                 LCD_disp_char(11,1,clock1[2]);
+ 618   3                 LCD_disp_char(12,1,clock1[3]);
+ 619   3                 LCD_disp_string(13,1,"| ");
+ 620   3                 if(clock1[4]==1)
+ 621   3                 {
+ 622   4                 LCD_disp_char(15,1,'1');
+ 623   4                 }
+ 624   3                 else if(clock1[4]==0)
+ 625   3                 {
+ 626   4                 LCD_disp_char(15,1,'0');
+ 627   4                 } 
+ 628   3                 for(j=0;SETTIME_MODE==1&&TEMPER_MODE==1&&RC522_MODE==1&&CLOCK_SET==1;j++)
+ 629   3              {
+ 630   4                              if(i>=0&&i<=1)
+ 631   4                      {
+ 632   5                      LCD_write_command(0x80 + i+ 8 ) ;       //指定光标位置
+ 633   5                      LCD_write_command(0x0f) ;
+ 634   5                              }
+ 635   4                              if(i>=2&&i<=3)
+ 636   4                      {
+ 637   5                      LCD_write_command(0x80 + i+ 9 ) ;       //指定光标位置
+ 638   5                      LCD_write_command(0x0f) ;
+ 639   5                              }       //光标闪烁指令
+ 640   4                              if(i==4)
+ 641   4                      {
+ 642   5                      LCD_write_command(0x80 + i+ 11 ) ;      //指定光标位置
+ 643   5                      LCD_write_command(0x0f) ;
+ 644   5                              }       //光标闪烁指令
+ 645   4                      }
+ 646   3               }
+ 647   2               else if(clock1_on==1)
+ 648   2               {
+ 649   3                 LCD_write_command(0x01);
+ 650   3                 delay_ms_main(100);
+ 651   3                 LCD_disp_string(1,1,"clock1 is on!");
+ 652   3                 send_byte(0x02);
+ 653   3                 Delay1ms(5000*12);
+ 654   3                 status=0;
+ 655   3                 flag_clock=0;
+ 656   3                 flag_tempdisp=0;
+ 657   3                 flag_settime=0;
+ 658   3                 clock1_on=0;
+ 659   3               }
+ 660   2         }
+ 661   1         
+ 662   1      }
+ 663          
+ 664          void recv_from_host() interrupt 4
+ 665          {
+ 666   1              u8 Data;
+ 667   1              Data=SBUF;
+ 668   1              if(RI)
+ 669   1              {
+ 670   2                      if(Data==0x01)
+ 671   2              {
+ 672   3                      rc522_state=1;
+ 673   3                      status=1;
+ 674   3                      flag_settime=0;  //修改时间状态
+C51 COMPILER V9.01   PMPDATAT                                                              06/02/2021 22:42:39 PAGE 12  
+
+ 675   3                  flag_tempdisp=0; //温度显示状态
+ 676   3                      flag_clock=0;
+ 677   3                      LCD_write_command(0x01);
+ 678   3                      delay_ms_main(100);
+ 679   3                      }
+ 680   2                      RI=0;
+ 681   2              }
+ 682   1      }
+ 683          
+ 684          void main()
+ 685          {  
+ 686   1         EA = 0;
+ 687   1         LCD_init();
+ 688   1         Uart_Init();
+ 689   1         EEPROM_init();  //串口初始化
+ 690   1         init_rc522();
+ 691   1         ds18b20_init_success=Ds18b20Init(); //初始化Ds18b20
+ 692   1         Ds18b20ReadTemp();
+ 693   1         EA = 1;
+ 694   1         ES = 1;
+ 695   1              while(1)
+ 696   1              {   
+ 697   2              KeyDown();
+ 698   2                      while(rc522_state)
+ 699   2                      {
+ 700   3                        RC522_KeyValue=4;
+ 701   3                        RC522_KeyDown();
+ 702   3                        ctrl_process();
+ 703   3                      } 
+ 704   2                Datahandle();
+ 705   2               display(); 
+ 706   2              }
+ 707   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   3905    ----
+   CONSTANT SIZE    =     67    ----
+   XDATA SIZE       =     90       1
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      7    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

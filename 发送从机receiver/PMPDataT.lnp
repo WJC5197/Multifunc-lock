@@ -1,0 +1,11 @@
+"PMPDataT.obj",
+"ctrl.obj",
+"ds1302.obj",
+"EEPROM.obj",
+"lcd.obj",
+"temp.obj",
+"uart.obj",
+"timer.obj",
+"rc522.obj" 
+TO "PMPDataT" 
+RAMSIZE(256) 

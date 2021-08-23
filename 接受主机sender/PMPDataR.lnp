@@ -1,0 +1,9 @@
+"PMPDataR.obj",
+"StepperMotorControl.obj",
+"oled.obj",
+"EEPROM.obj",
+"uart.obj",
+"FPM10A.obj",
+"PlayMusic.obj" 
+TO "PMPDataR" 
+RAMSIZE(256) 

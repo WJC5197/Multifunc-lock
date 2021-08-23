@@ -1,0 +1,121 @@
+C51 COMPILER V9.01   UART                                                                  06/02/2021 22:42:39 PAGE 1   
+
+
+C51 COMPILER V9.01, COMPILATION OF MODULE UART
+OBJECT MODULE PLACED IN uart.obj
+COMPILER INVOKED BY: D:\keil4\C51\BIN\C51.EXE SRC\uart.c LARGE BROWSE INCDIR(.\SRC) DEBUG OBJECTEXTEND PRINT(.\uart.lst)
+                    - OBJECT(uart.obj)
+
+line level    source
+
+   1          #include "reg52.h"
+   2          #include "uart.h"
+   3          #include "main.h"
+   4          #include "timer.h"
+   5          u8 data UartBuf[UART_MAX_LEN] = { 0 };
+   6          u8 UartCount = 0, UartLen = 0, UartStart = FALSE, UartComp = FALSE;
+   7          
+   8          
+   9          /**********************************************************************
+  10          functionName:putChar(BYTE sentData)
+  11          description:通过串口发送数据sentData
+  12          **********************************************************************/
+  13          void send_byte( u8 SendData )
+  14          {
+  15   1              ES = 0;
+  16   1              TI = 0;
+  17   1              SBUF = SendData;
+  18   1              while( TI == 0 );
+  19   1              TI = 0;
+  20   1              ES = 1;
+  21   1      }
+  22          
+  23          void send_bytes( u8 *Buf, u8 Len )
+  24          {
+  25   1              while( Len-- )
+  26   1              {
+  27   2                      send_byte( *Buf++ );    
+  28   2              }
+  29   1      }
+  30          
+  31          
+  32          /**********************************************************************
+  33          串口发送格式：fe  cmdlen  datalen cxx cxx dxx dxx dxx ... check
+  34          **********************************************************************/
+  35          /*void uart_interrupt_receive(void) interrupt 4
+  36          {
+  37                  u8 ReByte;
+  38                  if( RI == 1 )
+  39                  {
+  40                          RI = 0;
+  41                          UartWaitTime = 0;
+  42                          ReByte = SBUF;
+  43          
+  44                          //send_byte( ReByte );
+  45                          
+  46                          if( ( UartStart == FALSE ) && ( ReByte == 0xFE ) ) //FE为起始码
+  47                          {
+  48                                  UartStart = TRUE;
+  49                                  UartCount = 0;
+  50                                  UartLen = 255;
+  51                          }
+  52          
+  53                          else if( UartStart == TRUE )  //已经开始了接收数据
+  54                          {
+C51 COMPILER V9.01   UART                                                                  06/02/2021 22:42:39 PAGE 2   
+
+  55                                  UartBuf[ UartCount++ ] = ReByte;
+  56                                  if( UartCount == 2 )
+  57                                  {
+  58                                          UartLen = UartBuf[0] + UartBuf[1] + 3;
+  59                                  }
+  60                                  else if( UartCount >= UartLen )
+  61                                  {
+  62                                          UartComp = TRUE;
+  63                                  }
+  64                                  if( UartCount >= 45 )
+  65                                  {
+  66                                          UartCount = 45;
+  67                                  }
+  68                          }
+  69                  }
+  70          } */
+  71          
+  72          //UART0 initialize
+  73          // desired baud rate: 9600
+  74          // actual: baud rate:9600 (0.0%)
+  75          // char size: 8 bit
+  76          // parity: Disabled
+  77          
+  78          
+  79          void Uart_Init(void)
+  80          {
+  81   1          T2MOD = 0x01;
+  82   1              T2CON = 0x30;
+  83   1              TL2 = 0xdc;//计数初值设置波特率9600bps
+  84   1              TH2 = 0xff;//装载固定初值
+  85   1              RCAP2L = 0xdc;
+  86   1              RCAP2H = 0xff;
+  87   1          SCON = 0xd0;
+  88   1              PCON = 0x80;    
+  89   1              TR2 = 1;
+  90   1              ES = 0;
+  91   1              EA = 1;
+  92   1              REN= 1;
+  93   1      }
+  94          
+  95          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     90    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =      4       3
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     50    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

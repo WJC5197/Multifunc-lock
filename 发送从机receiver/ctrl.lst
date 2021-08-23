@@ -1,0 +1,677 @@
+C51 COMPILER V9.01   CTRL                                                                  06/02/2021 22:42:39 PAGE 1   
+
+
+C51 COMPILER V9.01, COMPILATION OF MODULE CTRL
+OBJECT MODULE PLACED IN ctrl.obj
+COMPILER INVOKED BY: D:\keil4\C51\BIN\C51.EXE SRC\ctrl.c LARGE BROWSE INCDIR(.\SRC) DEBUG OBJECTEXTEND PRINT(.\ctrl.lst)
+                    - OBJECT(ctrl.obj)
+
+line level    source
+
+   1          #include "reg52.h"
+   2          #include "string.h"
+   3          #include "uart.h"  
+   4          #include "rc522.h"
+   5          #include "ctrl.h"
+   6          #include "EEPROM.h"
+   7          #include "main.h"
+   8          #include "timer.h"
+   9          #include "lcd.h"
+  10          
+  11          
+  12          u8 i_rc522=0;
+  13          u8 RC522_KeyValue=4;
+  14          u8 Card_type[2],        //卡片类型
+  15                Card_SN[4]={0},//IC卡号 series nubmers
+  16                    Card_SN_BUF[4]={0xff,0xff,0xff,0xff},
+  17                    Card_saved_asc[128]={'E','5','8','7','D','C','3','0','7','7','9','A','A','0','6','0','F','9','5','C','9
+             -','1','D','5','D','9','D','4','8','6','D','3','\0'},   
+  18                    KEY_BUF[8],
+  19                    ID_ASC[8]={0};
+  20          
+  21          u8 bPass = 0, bWarn = 0;
+  22          
+  23          u8 key_count=0;
+  24          u8 table[8]={'0','0','0','0','0','0','0','0'};
+  25          u16 j_rc522=0;
+  26          
+  27          bit rc522_card_check=0;
+  28          bit card_pass=0;
+  29          bit in_rc522_password=0;
+  30          bit rc522_newcard=0;
+  31          bit rc522_set_password=0;
+  32          bit rc522_manage=0;
+  33          bit rc522_state=0;
+  34          bit sounder_beep=0;
+  35          bit card_compare=0;
+  36          bit is_newcard=0;
+  37                     
+  38          void Led_light()
+  39          {
+  40   1        LED=0;
+  41   1      }
+  42          
+  43          void Led_shut()
+  44          {
+  45   1        LED=1;
+  46   1      }
+  47          
+  48          void LED_BLINK_1()
+  49          {
+  50   1         LED = 0;     
+  51   1         Delay_ms(500);
+  52   1         LED = 1;             
+  53   1      }
+C51 COMPILER V9.01   CTRL                                                                  06/02/2021 22:42:39 PAGE 2   
+
+  54          
+  55          void LED_BLINK_2()
+  56          {
+  57   1         LED = 0;
+  58   1         Delay_ms(250);
+  59   1         LED = 1;
+  60   1         Delay_ms(250);
+  61   1         LED = 0;
+  62   1         Delay_ms(250);
+  63   1         LED = 1;
+  64   1      } 
+  65          
+  66          void uart_over( void )  //串口数据还原
+  67          {
+  68   1              UartCount = 0;
+  69   1              UartStart = FALSE;
+  70   1              UartComp = FALSE;
+  71   1      }
+  72          
+  73          void pass( void )
+  74          {
+  75   1         Delay_ms(1000);//让卡片离开
+  76   1         LED_BLINK_1();
+  77   1      }
+  78          
+  79          void warn(void)
+  80          {
+  81   1        LED_BLINK_2();
+  82   1      }
+  83          
+  84          void RC522_KeyDown()
+  85          {
+  86   1        char a=0;
+  87   1              if(SETTIME_MODE!=1)
+  88   1              {
+  89   2                Delay_ms(5);
+  90   2                if(SETTIME_MODE!=1)
+  91   2                {
+  92   3                  RC522_KeyValue=0;
+  93   3                              while((a<70)&&(SETTIME_MODE!=1))         //检测按键松手检测
+  94   3                              {
+  95   4                                      Delay_ms(5);
+  96   4                                      a++;
+  97   4                              }       
+  98   3                }
+  99   2              }
+ 100   1              if(TEMPER_MODE!=1)
+ 101   1              {
+ 102   2                Delay_ms(5);
+ 103   2                if(TEMPER_MODE!=1)
+ 104   2                {
+ 105   3                  RC522_KeyValue=1;
+ 106   3                                      while((a<70)&&(TEMPER_MODE!=1))  //检测按键松手检测
+ 107   3                              {
+ 108   4                                      Delay_ms(5);
+ 109   4                                      a++;
+ 110   4                              }       
+ 111   3                }
+ 112   2              }
+ 113   1              if(RC522_MODE!=1)
+ 114   1              {
+ 115   2                Delay_ms(5);
+C51 COMPILER V9.01   CTRL                                                                  06/02/2021 22:42:39 PAGE 3   
+
+ 116   2                if(RC522_MODE!=1)
+ 117   2                {
+ 118   3                 RC522_KeyValue=3;
+ 119   3                                      while((a<70)&&(RC522_MODE!=1))   //检测按键松手检测
+ 120   3                              {
+ 121   4                                      Delay_ms(5);
+ 122   4                                      a++;
+ 123   4                              }       
+ 124   3                }
+ 125   2              }
+ 126   1              if(CLOCK_SET!=1)
+ 127   1              {
+ 128   2                Delay_ms(5);
+ 129   2                if(CLOCK_SET!=1)
+ 130   2                {
+ 131   3                  RC522_KeyValue=2;
+ 132   3                                              while((a<70)&&(CLOCK_SET!=1))    //检测按键松手检测
+ 133   3                              {
+ 134   4                                      Delay_ms(5);
+ 135   4                                      a++;
+ 136   4                              }       
+ 137   3                }
+ 138   2              }
+ 139   1              
+ 140   1      }
+ 141          
+ 142          u8 IC_READ()
+ 143          {
+ 144   1          u8 i;
+ 145   1              if( PcdRequest( PICC_REQIDL, Card_type ) != MI_OK )//寻天线区内未进入休眠状态的卡，返回卡片类型 2字节   
+ 146   1              {
+ 147   2                      if( PcdRequest( PICC_REQIDL, Card_type ) != MI_OK )//寻天线区内未进入休眠状态的卡，返回卡片类型 2字节   
+ 148   2                      {                  
+ 149   3                              return FALSE;
+ 150   3                      }       
+ 151   2              }
+ 152   1              
+ 153   1              if( PcdAnticoll( Card_SN ) != MI_OK ) //防冲撞，返回卡的序列号 4字节 
+ 154   1              {
+ 155   2      
+ 156   2                      bWarn = 1;
+ 157   2                      return FALSE;   
+ 158   2              }
+ 159   1      
+ 160   1              bPass = 1;
+ 161   1      /*      send_bytes(Card_type,2);
+ 162   1              send_bytes(Card_SN,4);   */
+ 163   1              
+ 164   1              for(i=0;i<4;i++) //卡ID号转化成ASCII
+ 165   1              {
+ 166   2                if(Card_SN[i]/16>9)   ID_ASC[i*2]=Card_SN[i]/16+'7';
+ 167   2                  else ID_ASC[i*2]=Card_SN[i]/16+'0';
+ 168   2      
+ 169   2            if(Card_SN[i]%16>9)       ID_ASC[i*2+1]=Card_SN[i]%16+'7';
+ 170   2                  else ID_ASC[i*2+1]=Card_SN[i]%16+'0';
+ 171   2              }
+ 172   1              return TRUE;
+ 173   1      }
+ 174          
+ 175          bit rc522_card_compare()
+ 176          {
+ 177   1         u8 j,m,num;
+C51 COMPILER V9.01   CTRL                                                                  06/02/2021 22:42:39 PAGE 4   
+
+ 178   1         bit wrong=0;
+ 179   1         bit cycle_finished=0;        
+ 180   1         m=0;
+ 181   1         num=strlen(Card_saved_asc)/8;
+ 182   1         for(m=0;m<num;++m)
+ 183   1         {
+ 184   2           for(j=0;j<8;j++)
+ 185   2              {
+ 186   3               if(j==7)
+ 187   3               {
+ 188   4                cycle_finished=1;
+ 189   4               }        
+ 190   3               if(ID_ASC[j]!=Card_saved_asc[(m)*8+j])
+ 191   3               {
+ 192   4                 wrong=1;
+ 193   4                 break;
+ 194   4               }
+ 195   3              }
+ 196   2               if(wrong==0&&cycle_finished==1)
+ 197   2               {
+ 198   3                 cycle_finished=0;
+ 199   3             return 1;
+ 200   3               }
+ 201   2               if(wrong==1)
+ 202   2               {
+ 203   3                 if(m==num)
+ 204   3                 {
+ 205   4                      return 0;
+ 206   4                 }
+ 207   3                 wrong=0;
+ 208   3                 cycle_finished=0;
+ 209   3                 LED=0;
+ 210   3                 continue;
+ 211   3               }
+ 212   2         }
+ 213   1      }
+ 214          
+ 215          void ctrl_process()
+ 216          {                 
+ 217   1         u8 i;
+ 218   1              if(rc522_state==1&&status==1&&card_compare==0&&in_rc522_password==0&&rc522_manage==0&&rc522_newcard==0&&r
+             -c522_set_password==0)
+ 219   1              {
+ 220   2                rc522_card_check=1;
+ 221   2                        if(rc522_card_check==1&&card_pass==0)
+ 222   2                        {
+ 223   3                        LCD_disp_string(0,1,"---check card---");
+ 224   3                        LCD_disp_string(0,2,"wait for card...");
+ 225   3                        switch(RC522_KeyValue)
+ 226   3                        {
+ 227   4                              case 0:
+ 228   4                                 card_pass=0;
+ 229   4                                 rc522_card_check=0;
+ 230   4                                 in_rc522_password=0;
+ 231   4                                 rc522_newcard=0;
+ 232   4                     rc522_set_password=0;
+ 233   4                                 rc522_manage=0;
+ 234   4                                 rc522_state=0;
+ 235   4                                 status=0;
+ 236   4                                 RC522_KeyValue=4;
+ 237   4                                 LCD_write_command(0x01);
+ 238   4                                 Delay_ms(100);
+C51 COMPILER V9.01   CTRL                                                                  06/02/2021 22:42:39 PAGE 5   
+
+ 239   4                                 break;
+ 240   4                              default :break;
+ 241   4                        }               //IC卡读卡输入
+ 242   3                             if(IC_READ()) 
+ 243   3                                {
+ 244   4                                    IC_READ();
+ 245   4                                    LCD_write_command(0x01);
+ 246   4                                        Delay_ms(50);
+ 247   4                    /*  if ((Card_SN[0]==Card_SN_BUF[0])
+ 248   4                                    &&(Card_SN[1]==Card_SN_BUF[1])
+ 249   4                                        &&(Card_SN[2]==Card_SN_BUF[2])
+ 250   4                                        &&(Card_SN[3]==Card_SN_BUF[3]))
+ 251   4                                        {        */
+ 252   4                                          LCD_disp_string(1,1,"Read success!");
+ 253   4                                          LCD_disp_string(1,2,"ID:"); //显示卡号
+ 254   4                                              LCD_disp_string(4,2,ID_ASC);
+ 255   4                                              pass();//灯开关
+ 256   4                                              LCD_write_command(0x01);
+ 257   4                                              Delay_ms(100);
+ 258   4                                              rc522_card_check=0;
+ 259   4                                              card_compare=1;
+ 260   4                                  //  }
+ 261   4      /*                                else 
+ 262   4                                        {
+ 263   4                                         warn();
+ 264   4                                         LCD_write_command(0x01);
+ 265   4                                         LCD_disp_string(1,1,"fail!");   */
+ 266   4                                        } 
+ 267   3                                 }
+ 268   2                               }
+ 269   1                  if(card_compare==1)
+ 270   1                      {
+ 271   2                        card_pass=rc522_card_compare();
+ 272   2                        Delay_ms(1000);
+ 273   2                        LCD_write_command(0x01);
+ 274   2                        Delay_ms(50);
+ 275   2                        if(card_pass==1)
+ 276   2                        {
+ 277   3                              card_compare=0;
+ 278   3                          LCD_disp_string(0,1,"Compare success!");
+ 279   3                              LCD_disp_string(0,2,"Welcome Home!");
+ 280   3                              send_byte(0x01);
+ 281   3                              Delay_ms(1000);
+ 282   3                              LCD_write_command(0x01);
+ 283   3                              Delay_ms(50);
+ 284   3                        }
+ 285   2                        else
+ 286   2                        {
+ 287   3                              card_compare=0;
+ 288   3                              Delay_ms(50);
+ 289   3                              LCD_disp_string(1,1,"Card not exist!");
+ 290   3                              Delay_ms(1000);
+ 291   3                              LCD_write_command(0x01);
+ 292   3                              Delay_ms(100);
+ 293   3                              rc522_card_check=1;
+ 294   3                        }
+ 295   2      
+ 296   2                      }
+ 297   1                  if(card_pass==1)
+ 298   1                      {
+ 299   2                        LCD_disp_string(0,1,"|SETTINGS ENTRY|");
+ 300   2                        LCD_disp_string(2,2,"press < or >");
+C51 COMPILER V9.01   CTRL                                                                  06/02/2021 22:42:39 PAGE 6   
+
+ 301   2                        switch(RC522_KeyValue)
+ 302   2                        {
+ 303   3                         case 1:card_pass=0;
+ 304   3                                rc522_card_check=1;
+ 305   3                                        RC522_KeyValue=4;
+ 306   3                                        LCD_write_command(0x01);
+ 307   3                                    Delay_ms(100);
+ 308   3                                       break;
+ 309   3                         case 2:
+ 310   3                               card_pass=0;
+ 311   3                               in_rc522_password=1;
+ 312   3                                       RC522_KeyValue=4;
+ 313   3                                       LCD_write_command(0x01);
+ 314   3                                    Delay_ms(100);
+ 315   3                                       break;
+ 316   3                         case 3:
+ 317   3                               card_pass=0;
+ 318   3                                       rc522_manage=0;
+ 319   3                                       RC522_KeyValue=4;
+ 320   3                               in_rc522_password=1;
+ 321   3                                       LCD_write_command(0x01);
+ 322   3                                    Delay_ms(100);
+ 323   3                                       break;
+ 324   3                         case 0:
+ 325   3                               card_pass=0;
+ 326   3                                       rc522_card_check=0;
+ 327   3                                       in_rc522_password=0;
+ 328   3                                       rc522_newcard=0;
+ 329   3                       rc522_set_password=0;
+ 330   3                                       rc522_manage=0;
+ 331   3                                       rc522_state=0;
+ 332   3                                       status=0;
+ 333   3                                       RC522_KeyValue=4;
+ 334   3                                       LCD_write_command(0x01);
+ 335   3                                       Delay_ms(100);                                 //完全退出rc522模式
+ 336   3                                       break;
+ 337   3                        }
+ 338   2      
+ 339   2                      }
+ 340   1                      if(in_rc522_password==1)
+ 341   1                      {
+ 342   2                        switch(RC522_KeyValue)
+ 343   2                        {
+ 344   3                               case 0:table[key_count]++;
+ 345   3                               if(table[key_count]=='9'+1)
+ 346   3                               {
+ 347   4                                table[key_count]-=10;
+ 348   4                               }
+ 349   3                               break;
+ 350   3                               case 1:table[key_count]--;
+ 351   3                               if(table[key_count]=='0'-1)
+ 352   3                               {
+ 353   4                                table[key_count]+=10;
+ 354   4                               }
+ 355   3                               break;
+ 356   3                               case 3:
+ 357   3                               if(key_count<8)
+ 358   3                               {
+ 359   4                               key_count++;
+ 360   4                                 break;
+ 361   4                               }
+ 362   3                               if(key_count==8)
+C51 COMPILER V9.01   CTRL                                                                  06/02/2021 22:42:39 PAGE 7   
+
+ 363   3                               {
+ 364   4                                 break;
+ 365   4                               }
+ 366   3                               case 2:
+ 367   3                               if(key_count>0)
+ 368   3                               {
+ 369   4                               key_count--;
+ 370   4                                       break;
+ 371   4                               }
+ 372   3                               if(key_count==0)
+ 373   3                               {
+ 374   4                                break;
+ 375   4                               }
+ 376   3                        }
+ 377   2                        LCD_disp_string(1,1,"enter password:");
+ 378   2                        LCD_disp_char(1,2,table[0]);
+ 379   2                        LCD_disp_char(2,2,table[1]);
+ 380   2                        LCD_disp_char(3,2,table[2]);
+ 381   2                        LCD_disp_char(4,2,table[3]);
+ 382   2                        LCD_disp_char(5,2,table[4]);
+ 383   2                        LCD_disp_char(6,2,table[5]);
+ 384   2                        LCD_disp_char(7,2,table[6]);
+ 385   2                        LCD_disp_char(8,2,table[7]);
+ 386   2                      for(j_rc522=0;SETTIME_MODE==1&&TEMPER_MODE==1&&RC522_MODE==1&&CLOCK_SET==1;j_rc522++)
+ 387   2              {
+ 388   3                              if(key_count>=0&&key_count<=7)
+ 389   3                      {
+ 390   4                      LCD_write_command(0xc0 + key_count+1) ;
+ 391   4                      LCD_write_command(0x0f);
+ 392   4                              }
+ 393   3                      }        
+ 394   2                            if(key_count==8)
+ 395   2                                        {
+ 396   3                                           LCD_write_command(0x0c);
+ 397   3                                               Delay_ms(100);
+ 398   3                                           if( table[0]==KEY_BUF[0] &&
+ 399   3                                                   table[1]==KEY_BUF[1] &&
+ 400   3                                                       table[2]==KEY_BUF[2] &&
+ 401   3                                                       table[3]==KEY_BUF[3] &&
+ 402   3                                                       table[4]==KEY_BUF[4] &&
+ 403   3                                                       table[5]==KEY_BUF[5] &&
+ 404   3                                                       table[6]==KEY_BUF[6] &&
+ 405   3                                                       table[7]==KEY_BUF[7] )   //密吗正确 
+ 406   3                                                {
+ 407   4                                                 bPass=1;
+ 408   4                                                 rc522_manage=1;
+ 409   4                                                 in_rc522_password=0;
+ 410   4                                                 LCD_write_command(0x01);
+ 411   4                                                 Delay_ms(100);
+ 412   4                                                 LCD_disp_string(0,1,"enter to manage");
+ 413   4                                                 LCD_disp_string(0,2,"successfully!");
+ 414   4                                                 Delay_ms(1000);
+ 415   4                                                 LCD_write_command(0x01);
+ 416   4                                         Delay_ms(100);
+ 417   4                                                 RC522_KeyValue=4;
+ 418   4                                                 Led_shut();
+ 419   4                                                 key_count=0;
+ 420   4                                                 }                              
+ 421   3                                                else   //密码错误
+ 422   3                                               {      
+ 423   4                                                      //beep一下
+ 424   4                                                      key_count=0;
+C51 COMPILER V9.01   CTRL                                                                  06/02/2021 22:42:39 PAGE 8   
+
+ 425   4                                                      for(i_rc522=0;i_rc522<8;i_rc522++)
+ 426   4                                                      {
+ 427   5                                                        table[i_rc522]='0';
+ 428   5                                                      }
+ 429   4                                                      LCD_write_command(0x01);
+ 430   4                                                      Delay_ms(100);
+ 431   4                                                      LCD_disp_string(0,1,"password error!");
+ 432   4                                                      Delay_ms(1000);
+ 433   4                                                      LCD_write_command(0x0c);
+ 434   4                                                  Delay_ms(100);
+ 435   4                                                      RC522_KeyValue=4;
+ 436   4                                                      card_pass=1;
+ 437   4                                                      in_rc522_password=0;
+ 438   4                                                  LCD_write_command(0x01);
+ 439   4                                              Delay_ms(100);
+ 440   4                                                      bWarn=1;
+ 441   4                                               }
+ 442   3                                }
+ 443   2                              }
+ 444   1              
+ 445   1                      if(rc522_manage==1)
+ 446   1                 {
+ 447   2                        LCD_disp_string(0,1,"|RC522 SETTINGS|");
+ 448   2                        LCD_disp_string(0,2,"newcard< reset>");
+ 449   2                        switch(RC522_KeyValue)
+ 450   2              {
+ 451   3                        case 1:
+ 452   3                        rc522_manage=0;
+ 453   3                        card_pass=1;
+ 454   3                        RC522_KeyValue=4;
+ 455   3                        LCD_write_command(0x01);
+ 456   3                        Delay_ms(100);
+ 457   3                        break;
+ 458   3                        case 2:
+ 459   3                        rc522_manage=0;
+ 460   3                        rc522_newcard=1;
+ 461   3                        RC522_KeyValue=4;
+ 462   3                        LCD_write_command(0x01);
+ 463   3                        Delay_ms(100);
+ 464   3                        break;
+ 465   3                        case 3:
+ 466   3                        rc522_manage=0;
+ 467   3                        rc522_set_password=1;
+ 468   3                        RC522_KeyValue=4;
+ 469   3                        LCD_write_command(0x01);
+ 470   3                        Delay_ms(100);
+ 471   3                        break;
+ 472   3                        case 0:
+ 473   3                        card_pass=0;
+ 474   3                        rc522_card_check=0;
+ 475   3                        in_rc522_password=0;
+ 476   3                        rc522_newcard=0;
+ 477   3                rc522_set_password=0;
+ 478   3                        rc522_manage=0;
+ 479   3                        RC522_KeyValue=4;
+ 480   3                        LCD_write_command(0x01);
+ 481   3                        Delay_ms(100);
+ 482   3                        break;
+ 483   3                      }
+ 484   2                 }
+ 485   1              if(rc522_newcard==1)
+ 486   1                      {
+C51 COMPILER V9.01   CTRL                                                                  06/02/2021 22:42:39 PAGE 9   
+
+ 487   2                        LCD_disp_string(1,1,"set new card");
+ 488   2                        LCD_disp_string(1,2,"check waiting...");
+ 489   2                    if(IC_READ())  
+ 490   2                                 {
+ 491   3                                  LCD_write_command(0x01);
+ 492   3                                      Delay_ms(100);
+ 493   3                                      LCD_disp_string(1,1,"Read success!");
+ 494   3                                      LCD_disp_string(1,2,"ID:");
+ 495   3                                      LCD_disp_string(5,2,ID_ASC);
+ 496   3                                      Delay_ms(2000);
+ 497   3                                      is_newcard=rc522_card_compare();
+ 498   3                                      if(is_newcard==0)
+ 499   3                                      {
+ 500   4                                      LCD_write_command(0x01);
+ 501   4                                      Delay_ms(100);
+ 502   4                                      LCD_disp_string(0,1,"success recorded!");
+ 503   4                                      LCD_disp_string(1,2,"ID:");
+ 504   4                                      LCD_disp_string(5,2,ID_ASC);
+ 505   4                                      Delay_ms(2000);  
+ 506   4                                  for(i_rc522=strlen(Card_saved_asc),i=0;i_rc522<strlen(Card_saved_asc)+8;i_rc522++,i++)
+ 507   4                                      {
+ 508   5                                         Card_saved_asc[i_rc522]=ID_ASC[i];
+ 509   5                                      }
+ 510   4                                      EEPROM_WRITE(2,Card_saved_asc,128);//写入EEPROM
+ 511   4                                  RC522_KeyValue=4;
+ 512   4                                      rc522_newcard=0;
+ 513   4                                      rc522_manage=1;
+ 514   4                                      LCD_write_command(0x01);
+ 515   4                                      Delay_ms(100);
+ 516   4                                      bPass=1;
+ 517   4                                      }
+ 518   3                                      else
+ 519   3                                      {
+ 520   4                                        LCD_write_command(0x01);
+ 521   4                                        Delay_ms(100);
+ 522   4                                        LCD_disp_string(1,1,"Card is exist!");
+ 523   4                                        LCD_disp_string(1,2,"fail saving.");
+ 524   4                                        Delay_ms(2000);
+ 525   4                                        RC522_KeyValue=4;
+ 526   4                                        rc522_newcard=0;
+ 527   4                                        rc522_manage=1;
+ 528   4                                        LCD_write_command(0x01);
+ 529   4                                        Delay_ms(100);
+ 530   4                                        bWarn=1;
+ 531   4                                      }
+ 532   3                                 }
+ 533   2                      
+ 534   2                      }
+ 535   1                      if(rc522_set_password==1)
+ 536   1                      {
+ 537   2                switch(RC522_KeyValue)
+ 538   2                        {
+ 539   3                               case 0:table[key_count]++;
+ 540   3                               if(table[key_count]=='9'+1)
+ 541   3                               {
+ 542   4                                table[key_count]-=10;
+ 543   4                               }
+ 544   3                               break;
+ 545   3                               case 1:table[key_count]--;
+ 546   3                               if(table[key_count]=='0'-1)
+ 547   3                               {
+ 548   4                                table[key_count]+=10;
+C51 COMPILER V9.01   CTRL                                                                  06/02/2021 22:42:39 PAGE 10  
+
+ 549   4                               }
+ 550   3                               break;
+ 551   3                               case 3:
+ 552   3                               if(key_count<8)
+ 553   3                               {
+ 554   4                               key_count++;
+ 555   4                                 break;
+ 556   4                               }
+ 557   3                               if(key_count==8)
+ 558   3                               {
+ 559   4                                 break;
+ 560   4                               }
+ 561   3                               case 2:
+ 562   3                               if(key_count>0)
+ 563   3                               {
+ 564   4                               key_count--;
+ 565   4                                       break;
+ 566   4                               }
+ 567   3                               if(key_count==0)
+ 568   3                               {
+ 569   4                                break;
+ 570   4                               }
+ 571   3                        }
+ 572   2                        LCD_disp_string(1,1,"in new password:");
+ 573   2                        LCD_disp_char(1,2,table[0]);
+ 574   2                        LCD_disp_char(2,2,table[1]);
+ 575   2                        LCD_disp_char(3,2,table[2]);
+ 576   2                        LCD_disp_char(4,2,table[3]);
+ 577   2                        LCD_disp_char(5,2,table[4]);
+ 578   2                        LCD_disp_char(6,2,table[5]);
+ 579   2                        LCD_disp_char(7,2,table[6]);
+ 580   2                        LCD_disp_char(8,2,table[7]);
+ 581   2                      for(j_rc522=0;SETTIME_MODE==1&&TEMPER_MODE==1&&RC522_MODE==1&&CLOCK_SET==1;j_rc522++)
+ 582   2              {
+ 583   3                              if(key_count>=0&&key_count<=7)
+ 584   3                      {
+ 585   4                      LCD_write_command(0xc0 + key_count+1) ;
+ 586   4                      LCD_write_command(0x0f);
+ 587   4                              Delay_ms(5);
+ 588   4                              }
+ 589   3                      }
+ 590   2                        if(key_count==8)
+ 591   2                        { 
+ 592   3                          EEPROM_WRITE(1,table,8);
+ 593   3                              for(i_rc522=0;i_rc522<8;i_rc522++)
+ 594   3                              {
+ 595   4                                KEY_BUF[i_rc522]=table[i_rc522];
+ 596   4                              }
+ 597   3                              key_count=0;
+ 598   3                              for(i_rc522=0;i_rc522<8;i_rc522++)
+ 599   3                              {
+ 600   4                                table[i_rc522]='0';
+ 601   4                              }
+ 602   3                              rc522_set_password=0;
+ 603   3                              rc522_manage=1;
+ 604   3                              LCD_write_command(0x01);
+ 605   3                              Delay_ms(100);
+ 606   3                              LCD_write_command(0x0c);
+ 607   3                              Delay_ms(100);
+ 608   3                              LCD_disp_string(0,1,"reset password");
+ 609   3                              LCD_disp_string(0,2,"successfully!");
+ 610   3                              Delay_ms(2000);
+C51 COMPILER V9.01   CTRL                                                                  06/02/2021 22:42:39 PAGE 11  
+
+ 611   3                      LCD_write_command(0x01);
+ 612   3                              Delay_ms(100);
+ 613   3                        }
+ 614   2                      }                       
+ 615   1      
+ 616   1              if( bPass )              //处理成功
+ 617   1              {
+ 618   2                      bPass = 0;
+ 619   2                      pass(); 
+ 620   2              
+ 621   2              }
+ 622   1      
+ 623   1              if( bWarn )          //处理失败
+ 624   1              {
+ 625   2                      bWarn = 0;
+ 626   2                      warn();
+ 627   2              }
+ 628   1                
+ 629   1      }
+ 630          
+*** WARNING C291 IN LINE 213 OF SRC\CTRL.C: not every exit path returns a value
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   2681    ----
+   CONSTANT SIZE    =    332    ----
+   XDATA SIZE       =    169       2
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =     10       2
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  1 WARNING(S),  0 ERROR(S)
